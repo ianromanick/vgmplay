@@ -11,7 +11,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <assert.h>
+#include <malloc.h>
 #include "vgm.h"
+
+struct vgm_buf {
+    uint8_t far *buffer;
+    uint32_t size;
+    uint32_t pos;
+};
 
 /*
  * \param gd3_offset True offset of the start of the GD3 block in the
@@ -65,6 +72,60 @@ dump_gd3(int fd, uint32_t gd3_offset)
     free(buf);
     return;
 }
+
+static void
+skip_bytes(struct vgm_buf *v, unsigned bytes_to_skip)
+{
+    v->pos += bytes_to_skip;
+
+    if (v->pos > v->size)
+        v->pos = v->size;
+}
+
+static uint8_t
+get_uint8(struct vgm_buf *v)
+{
+    if (v->pos >= v->size)
+        return 0x66;
+
+    return v->buffer[v->pos++];
+}
+
+static uint16_t
+get_uint16(struct vgm_buf *v)
+{
+    if (v->pos + 2 > v->size) {
+        v->pos = v->size;
+        return 0;
+    } else {
+        uint16_t result = (uint16_t)v->buffer[v->pos] |
+            ((uint16_t)v->buffer[v->pos + 1] << 8);
+
+        v->pos += 2;
+
+        return result;
+    }
+}
+
+static uint32_t
+get_uint32(struct vgm_buf *v)
+{
+    if (v->pos + 4 > v->size) {
+        v->pos = v->size;
+        return 0;
+    } else {
+        uint32_t result = (uint32_t)v->buffer[v->pos] |
+            ((uint32_t)v->buffer[v->pos + 1] << 8) |
+            ((uint32_t)v->buffer[v->pos + 2] << 16) |
+            ((uint32_t)v->buffer[v->pos + 3] << 24);
+
+        v->pos += 4;
+
+        return result;
+    }
+}
+
+static uint8_t tmp_buf[4096];
 
 int
 main(int argc, char **argv)
@@ -196,9 +257,51 @@ main(int argc, char **argv)
     if (header.gd3_offset != 0)
         dump_gd3(fd, header.gd3_offset + 0x14);
 
+
+    off_t end_pos = lseek(fd, 0, SEEK_END);
+    if (end_pos == (int32_t) -1)
+        goto fail;
+
     off_t pos = lseek(fd, header.vgm_data_offset + 0x34, SEEK_SET);
     if (pos == (off_t) -1)
         goto fail;
+
+    off_t size = end_pos - pos;
+    if (size >= 0xffffUL) {
+        printf("Files larger than 64k are not yet supported.\n");
+        goto fail;
+    }
+
+    uint8_t far *buffer = _fmalloc(size);
+    if (buffer == NULL) {
+        printf("Could not allocate %lu bytes of memory.\n",
+               (unsigned long) size);
+        goto fail;
+    }
+
+    /* All of this is because there isn't a version of read() than can write
+     * the data to a far pointer.
+     */
+    off_t total_read = 0;
+    while (total_read < size) {
+        off_t remain = size - total_read;
+
+        if (remain > sizeof(tmp_buf))
+            remain = sizeof(tmp_buf);
+
+        size_t bytes_read = read(fd, tmp_buf, remain);
+        if (bytes_read == (size_t) -1 || bytes_read == 0) {
+            printf("Unable to read %u bytes from file.\n",
+                   (unsigned) remain);
+            goto fail;
+        }
+
+        _fmemcpy(&buffer[total_read], tmp_buf, bytes_read);
+
+        total_read += bytes_read;
+    }
+
+//    struct vgm_buf v = { buffer, size, 0 };
 
  fail:
     close(fd);
