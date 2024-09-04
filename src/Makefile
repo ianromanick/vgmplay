@@ -1,6 +1,9 @@
 # Makefile for DOS target (using Open Watcom 1.9) hosted on Linux.
 CC=wcc
-CFLAGS=-q -0 -za99 -aa -oxh -wx
+
+# Do not enable loop optimizations. This breaks calibrate_delay() because it
+# optimzes away at least some of the loops.
+CFLAGS=-q -0 -za99 -aa -wx
 
 all: vgmplay.exe
 

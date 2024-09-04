@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <malloc.h>
+#include <i86.h>
 #include "vgm.h"
 
 struct vgm_buf {
@@ -122,6 +123,127 @@ get_uint32(struct vgm_buf *v)
         v->pos += 4;
 
         return result;
+    }
+}
+
+#define DEBUG_LOG
+
+static uint32_t
+get_tick()
+{
+#if 1
+    union REGS r;
+
+    r.h.ah = 0;
+    int86(0x1a, &r, &r);
+
+    return r.w.dx | ((uint32_t) r.w.cx << 16);
+#else
+    /* Reading the tick counter directly from low memory does not seem to work
+     * on DOSBox. I'm not sure if this a DOSBox problem or I'm just doing it
+     * wrong.
+     */
+    return *(volatile unsigned long far *) 0x0000046CL;
+#endif
+}
+
+static uint32_t iterations_for_44kHz;
+static uint16_t junk1 = 11;
+static uint16_t junk2 = 13;
+
+#define DELAY_WORK(x)                           \
+    (x) *= 97;                                  \
+    (x) *= 97;                                  \
+    (x) *= 97;                                  \
+    (x) *= 97;                                  \
+    (x) *= 97;                                  \
+    (x) *= 97;                                  \
+    (x) *= 97;                                  \
+    (x) *= 97
+
+static void
+calibrate_delay()
+{
+    uint32_t first = get_tick();
+    uint32_t second;
+
+    do {
+        second = get_tick();
+    } while (first == second);
+
+    uint32_t third;
+    uint32_t iterations = 0;
+
+    /* Get a first estimate of the number of iterations per 18.2Hz tick. This
+     * will be an underestimate due to the overhead of calling get_tick inside
+     * the loop.
+     */
+    do {
+        DELAY_WORK(junk1);
+
+        iterations++;
+        third = get_tick();
+    } while (third == second);
+
+#ifdef DEBUG_LOG
+    printf("iterations = %lu\n", (unsigned long) iterations);
+#endif
+
+    first = get_tick();
+
+#define FACTOR 12ul
+
+    /* Refine the initial estimate by rerunning the loop without calling
+     * get_tick inside the loop.
+     */
+    for (uint32_t i = 0; i < (iterations * FACTOR); i++) {
+        DELAY_WORK(junk1);
+    }
+
+    second = get_tick();
+
+#ifdef DEBUG_LOG
+    printf("%lu ticks for %lu iterations\n",
+           (unsigned long)(second - first),
+           (unsigned long)(iterations * 32));
+#endif
+
+    /* x * 1573040 / 86400 = y * 44100
+     * x * 19663 / 1080 = y * 44100
+     * x * 19663 / (1080 * 44100) = y
+     * x * 2809 / 6804000 = y
+     *
+     * x = (iterations * FACTOR) / (second - first)
+     */
+    uint32_t n = (FACTOR * 2809ul) * iterations;
+    uint32_t d = (second - first) * 6804000ul;
+
+#ifdef DEBUG_LOG
+    printf("%lu / %lu\n", n, d);
+#endif
+
+    iterations_for_44kHz = n / d;
+
+    if (iterations_for_44kHz == 0)
+        iterations_for_44kHz = 1;
+
+#ifdef DEBUG_LOG
+    printf("%lu iterations for 44100kHz\n", iterations_for_44kHz);
+#endif
+}
+
+/**
+ * Wait for a number of 44.1kHz samples.
+ *
+ * \note \c calibrate_delay must be called before calling this function.
+ */
+static void
+wait_44khz(uint16_t samples)
+{
+    for (uint16_t i = 0; i < samples; i++) {
+        for (uint32_t j = 0; j < iterations_for_44kHz; j++) {
+            DELAY_WORK(junk2);
+        }
     }
 }
 
@@ -302,6 +424,10 @@ main(int argc, char **argv)
     }
 
 //    struct vgm_buf v = { buffer, size, 0 };
+
+    calibrate_delay();
+
+    printf("Nonsense numbers to trick the compiler: %d %d\n", junk1, junk2);
 
  fail:
     close(fd);
