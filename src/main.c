@@ -148,19 +148,36 @@ get_tick()
 #endif
 }
 
-static uint32_t iterations_for_44kHz;
-static uint16_t junk1 = 11;
-static uint16_t junk2 = 13;
+static int32_t adj_up;
+static int32_t adj_dn;
+static int32_t initial;
+static uint8_t step;
 
-#define DELAY_WORK(x)                           \
-    (x) *= 97;                                  \
-    (x) *= 97;                                  \
-    (x) *= 97;                                  \
-    (x) *= 97;                                  \
-    (x) *= 97;                                  \
-    (x) *= 97;                                  \
-    (x) *= 97;                                  \
-    (x) *= 97
+/**
+ * Wait for a number of 44.1kHz samples.
+ *
+ * This uses an interpolation method similar to a Bresenham run-slice line
+ * drawing algorithm. This avoids mulitplication and division in the
+ * time-critical code, and it maintains a decent level of accuracy.
+ *
+ * \note \c calibrate_delay must be called before calling this function.
+ */
+static void
+wait_44khz(uint16_t samples)
+{
+    int32_t err = initial;
+    int32_t remain = samples;
+
+    while (remain > 0) {
+        err += 2 * adj_up;
+        if (err > 0) {
+            err -= adj_dn;
+            remain--;
+        }
+
+        remain -= step;
+    }
+}
 
 static void
 calibrate_delay()
@@ -180,8 +197,6 @@ calibrate_delay()
      * the loop.
      */
     do {
-        DELAY_WORK(junk1);
-
         iterations++;
         third = get_tick();
     } while (third == second);
@@ -190,18 +205,35 @@ calibrate_delay()
     printf("iterations = %lu\n", (unsigned long) iterations);
 #endif
 
-    first = get_tick();
-
-#define FACTOR 12ul
-
     /* Refine the initial estimate by rerunning the loop without calling
-     * get_tick inside the loop.
+     * get_tick inside the loop. Use the actual delay loop. This is done by
+     * selecting parameter values that will fix the number of iterations
+     * through the delay loop at FACTOR * iterations.
+     *
+     * These values are selected so that the if-statement inside the loop will
+     * execute 50% of the time. This gives a more accurate representation of
+     * the per-loop execution time.
      */
-    for (uint32_t i = 0; i < (iterations * FACTOR); i++) {
-        DELAY_WORK(junk1);
-    }
+#define FACTOR 4ul
 
-    second = get_tick();
+    step = 1;
+    adj_up = 1;
+    adj_dn = 4;
+    initial = -2;
+
+    iterations *= FACTOR / 2;
+
+    do {
+        iterations *= 2;
+
+        third = get_tick();
+        do {
+            first = get_tick();
+        } while (first == third);
+
+        wait_44khz(3u * iterations / 2u);
+        second = get_tick();
+    } while ((second - first) < 4);
 
 #ifdef DEBUG_LOG
     printf("%lu ticks for %lu iterations\n",
@@ -209,43 +241,34 @@ calibrate_delay()
            (unsigned long)(iterations * 32));
 #endif
 
-    /* x * 1573040 / 86400 = y * 44100
-     * x * 19663 / 1080 = y * 44100
-     * x * 19663 / (1080 * 44100) = y
-     * x * 2809 / 6804000 = y
+    /* There are 1,573,040 ticks in a day. A day is 24h * 60m * 60s = 86,400
+     * seconds. 1573040 / 86400 is the exact representation of the PC 18.2Hz
+     * clock. That fraction reduces to 19663 / 1080.
      *
-     * x = (iterations * FACTOR) / (second - first)
+     * ticks * 19663 / 1080 = samples * 44100
+     * ticks * 19663 / (1080 * 44100) = samples
+     * ticks * 2809 / 6804000 = samples
+     *
+     * 1 tick = iterations / (second - first)
      */
-    uint32_t n = (FACTOR * 2809ul) * iterations;
-    uint32_t d = (second - first) * 6804000ul;
+    uint32_t n = 2809 * (iterations / FACTOR);
+    uint32_t d = (second - first) * (6804000ul / FACTOR);
+    assert(6804000ul % FACTOR == 0);
 
 #ifdef DEBUG_LOG
     printf("%lu / %lu\n", n, d);
 #endif
 
-    iterations_for_44kHz = n / d;
-
-    if (iterations_for_44kHz == 0)
-        iterations_for_44kHz = 1;
+    adj_up = d % n;
+    adj_dn = n * 2;
+    step = d / n;
+    initial = adj_up - adj_dn;
 
 #ifdef DEBUG_LOG
-    printf("%lu iterations for 44100kHz\n", iterations_for_44kHz);
+    printf("Delay loop parameters: adj_up = %ld, adj_dn = %ld, initial = %ld, "
+           "step = %u\n",
+           adj_up, adj_dn, initial, step);
 #endif
-}
-
-/**
- * Wait for a number of 44.1kHz samples.
- *
- * \note \c calibrate_delay must be called before calling this function.
- */
-static void
-wait_44khz(uint16_t samples)
-{
-    for (uint16_t i = 0; i < samples; i++) {
-        for (uint32_t j = 0; j < iterations_for_44kHz; j++) {
-            DELAY_WORK(junk2);
-        }
-    }
 }
 
 static void
@@ -793,8 +816,6 @@ main(int argc, char **argv)
     calibrate_delay();
 
     play_Tandy_sound(&v, &header);
-
-    printf("Nonsense numbers to trick the compiler: %d %d\n", junk1, junk2);
 
  fail:
     close(fd);
