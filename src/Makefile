@@ -3,7 +3,7 @@ CC=wcc
 
 # Do not enable loop optimizations. This breaks calibrate_delay() because it
 # optimzes away at least some of the loops.
-CFLAGS=-q -0 -za99 -aa -wx
+CFLAGS=-q -0 -za99 -aa -wx -ox -oh
 
 all: vgmplay.exe
 
