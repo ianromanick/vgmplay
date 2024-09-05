@@ -7,12 +7,18 @@ To maximize current performance and memory footprint, and future portability,
 C with small bits of assembly language will be used. Currently only Open
 Watcom 1.9 is supported.
 
-The player is currently able to play files smaller than 64k on DOSBox. Real
-hardware has not been tested yet.
+The player is currently able to play files smaller than 64k on DOSBox and real
+hardware. On my Tandy 1000 HX (7.1MHz 8088), playback is slightly slow. The
+track "Vampire Killer" from the DOS Castlevania should play back in 32s, but
+it requires a little over 35s.
 
 TODO:
 
 - Add the ability to play files larger than 64k.
+
+- Add the ability for the user to exit playback early.
+
+- Enable support for song loops.
 
 - Enable support for later Tandy 1000 models. These put the sound chip at IO
   port 0x1e0 instead of 0xc0. Add a command line option for the IO port. Is it
