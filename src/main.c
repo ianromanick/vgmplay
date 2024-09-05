@@ -815,7 +815,14 @@ main(int argc, char **argv)
 
     calibrate_delay();
 
+    uint32_t before = get_tick();
     play_Tandy_sound(&v, &header);
+    uint32_t after = get_tick();
+
+    uint32_t elapsed_ms = 55ul * (after - before);
+    printf("Elapsed play time = %lu.%lus (%lu ticks)\n",
+           elapsed_ms / 1000, elapsed_ms % 1000,
+           after - before);
 
  fail:
     close(fd);
