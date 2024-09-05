@@ -84,7 +84,7 @@ skip_bytes(struct vgm_buf *v, unsigned bytes_to_skip)
         v->pos = v->size;
 }
 
-static uint8_t
+static inline uint8_t
 get_uint8(struct vgm_buf *v)
 {
     if (v->pos >= v->size)
@@ -93,7 +93,7 @@ get_uint8(struct vgm_buf *v)
     return v->buffer[v->pos++];
 }
 
-static uint16_t
+static inline uint16_t
 get_uint16(struct vgm_buf *v)
 {
     if (v->pos + 2 > v->size) {
@@ -109,7 +109,7 @@ get_uint16(struct vgm_buf *v)
     }
 }
 
-static uint32_t
+static inline uint32_t
 get_uint32(struct vgm_buf *v)
 {
     if (v->pos + 4 > v->size) {
