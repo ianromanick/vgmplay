@@ -3,6 +3,10 @@ Video Game Music (VGM) player for low-end computers. The initial target is
 sound chips. Additional base systems and sound chips will likely be added in
 the future.
 
+There is a YouTube video showing the functionality of the 0.1 release:
+
+https://youtu.be/yndzpGBLQZQ
+
 To maximize current performance and memory footprint, and future portability,
 C with small bits of assembly language will be used. Currently only Open
 Watcom 1.9 is supported.
