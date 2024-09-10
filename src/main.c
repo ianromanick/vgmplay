@@ -149,7 +149,7 @@ get_tick()
 }
 
 static uint16_t adj_up;
-static uint16_t adj_dn;
+static uint16_t adj_dn = 0;
 static uint16_t initial;
 static uint8_t step;
 
@@ -708,18 +708,85 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
 
 static uint8_t tmp_buf[4096];
 
+static void
+show_help(const char *progname)
+{
+    printf("Usage: %s [/delay:####:####] filename.vgm\n"
+           "\n"
+           "Optional parameters:\n"
+           "    /delay:####:#### - specify delay loop control parameters. "
+           "The parameters\n"
+           "                       are two numbers between 1 and 32767 "
+           "(inclusive).\n"
+           "                       /delay:27000:23895 works well on Tandy "
+           "1000HX.\n"
+           "    /help            - Display this help message.\n"
+           "\n"
+           "Required parameter:\n"
+           "    filename.vgm - Uncompressed VGM file to be played.\n",
+           progname);
+}
+
+static int
+parse_args(int argc, char **argv)
+{
+    for (int i = 1; i < argc; i++) {
+        if (argv[i][0] == '/') {
+            if (strcmp(argv[i], "/help") == 0 ||
+                strcmp(argv[i], "/h") == 0 ||
+                strcmp(argv[i], "/?") == 0) {
+                return -1;
+            } else if (strncmp(argv[i], "/delay:", 7) == 0) {
+                unsigned long n = atol(&argv[i][7]);
+
+                char *next = strchr(&argv[i][7], ':');
+                if (next == NULL) {
+                    printf("Malformed parameter \"%s\".\n\n",
+                           argv[i]);
+                    return -1;
+                }
+
+                /* The +1 skips over the ':'. */
+                unsigned long d = atol(next + 1);
+
+                if (d == 0 || d > 0x7fff || n == 0 || n > 0x7fff) {
+                    printf("Each delay loop parameter must be in the range "
+                           "[1, 32767].\nGot %lu, %lu.\n\n",
+                           n, d);
+                    return -1;
+                }
+
+                set_delay_parameters(n, d);
+            } else {
+                printf("Unknown parameter \"%s\".\n\n",
+                       argv[i]);
+                return -1;
+            }
+        } else {
+            return i;
+        }
+    }
+
+    /* No arguments left for the file name. Error. */
+    printf("VGM filename not specified.\n\n");
+    return -1;
+}
+
 int
 main(int argc, char **argv)
 {
-    if (argc < 2)
+    int filename_idx = parse_args(argc, argv);
+    if (filename_idx < 0) {
+        show_help(argv[0]);
         return -1;
+    }
 
     struct vgm_header header;
     assert(sizeof(header) == 256);
-    int fd = open(argv[1], O_RDONLY | O_BINARY);
+    int fd = open(argv[filename_idx], O_RDONLY | O_BINARY);
 
     if (fd < 0) {
-        printf("Could not open file \"%s\".\n", argv[1]);
+        printf("Could not open file \"%s\".\n", argv[filename_idx]);
         return -1;
     }
 
@@ -884,7 +951,8 @@ main(int argc, char **argv)
 
     struct vgm_buf v = { buffer, size, 0 };
 
-    calibrate_delay();
+    if (adj_dn == 0)
+        calibrate_delay();
 
     uint32_t expected_ms = (10 * header.total_samples) / 441;
     printf("Expected play time = %lu.%03lus (%lu samples @ 44100Hz)\n",
