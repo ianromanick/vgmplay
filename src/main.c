@@ -16,6 +16,9 @@
 #include <conio.h>
 #include "vgm.h"
 
+/* Uncomment the next line to get added debug logging. */
+//#define DEBUG_LOG
+
 struct vgm_buf {
     uint8_t far *buffer;
     uint32_t size;
@@ -126,8 +129,6 @@ get_uint32(struct vgm_buf *v)
         return result;
     }
 }
-
-#define DEBUG_LOG
 
 static uint32_t
 get_tick()
