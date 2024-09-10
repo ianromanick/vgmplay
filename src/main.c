@@ -78,6 +78,33 @@ dump_gd3(int fd, uint32_t gd3_offset)
     return;
 }
 
+static int32_t
+far_read(int handle, void far *buf, uint32_t len)
+{
+    static uint8_t tmp_buf[4096];
+
+    /* All of this is because there isn't a version of read() than can write
+     * the data to a far pointer.
+     */
+    off_t total_read = 0;
+    while (total_read < len) {
+        off_t remain = len - total_read;
+
+        if (remain > sizeof(tmp_buf))
+            remain = sizeof(tmp_buf);
+
+        int bytes_read = read(handle, tmp_buf, remain);
+        if (bytes_read == -1 || bytes_read == 0)
+            return total_read == 0 ? -1 : total_read;
+
+        _fmemcpy(total_read + (uint8_t far *)buf, tmp_buf, bytes_read);
+
+        total_read += bytes_read;
+    }
+
+    return total_read;
+}
+
 static void
 skip_bytes(struct vgm_buf *v, unsigned bytes_to_skip)
 {
@@ -699,8 +726,6 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
     return;
 }
 
-static uint8_t tmp_buf[4096];
-
 static void
 show_help(const char *progname)
 {
@@ -920,26 +945,10 @@ main(int argc, char **argv)
         goto fail;
     }
 
-    /* All of this is because there isn't a version of read() than can write
-     * the data to a far pointer.
-     */
-    off_t total_read = 0;
-    while (total_read < size) {
-        off_t remain = size - total_read;
-
-        if (remain > sizeof(tmp_buf))
-            remain = sizeof(tmp_buf);
-
-        size_t bytes_read = read(fd, tmp_buf, remain);
-        if (bytes_read == (size_t) -1 || bytes_read == 0) {
-            printf("Unable to read %u bytes from file.\n",
-                   (unsigned) remain);
-            goto fail;
-        }
-
-        _fmemcpy(&buffer[total_read], tmp_buf, bytes_read);
-
-        total_read += bytes_read;
+    if (far_read(fd, buffer, size) < size) {
+        printf("Unable to read %lu bytes from file.\n",
+               (unsigned long) size);
+        goto fail;
     }
 
     struct vgm_buf v = { buffer, size, 0 };
