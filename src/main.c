@@ -132,20 +132,12 @@ get_uint32(struct vgm_buf *v)
 static uint32_t
 get_tick()
 {
-#if 1
     union REGS r;
 
     r.h.ah = 0;
     int86(0x1a, &r, &r);
 
     return r.w.dx | ((uint32_t) r.w.cx << 16);
-#else
-    /* Reading the tick counter directly from low memory does not seem to work
-     * on DOSBox. I'm not sure if this a DOSBox problem or I'm just doing it
-     * wrong.
-     */
-    return *(volatile unsigned long far *) 0x0000046CL;
-#endif
 }
 
 static uint16_t adj_up;
