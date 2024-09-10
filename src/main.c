@@ -148,9 +148,9 @@ get_tick()
 #endif
 }
 
-static int32_t adj_up;
-static int32_t adj_dn;
-static int32_t initial;
+static uint16_t adj_up;
+static uint16_t adj_dn;
+static uint16_t initial;
 static uint8_t step;
 
 /**
@@ -165,13 +165,19 @@ static uint8_t step;
 static void
 wait_44khz(uint16_t samples)
 {
-    int32_t err = initial;
-    int32_t remain = samples;
+    uint16_t err = initial;
+    int16_t remain = samples;
 
     while (remain > 0) {
-        err += 2 * adj_up;
-        if (err > 0) {
-            err -= adj_dn;
+        const uint16_t old_err = err;
+
+        err -= 2 * adj_up;
+
+        /* Using unsigned values and testing for underflow (instead of
+         * comparing with zero) gives an extra bit of precision.
+         */
+        if (err > old_err) {
+            err += adj_dn;
             remain--;
         }
 
@@ -179,95 +185,160 @@ wait_44khz(uint16_t samples)
     }
 }
 
+/* Wait for a new tick value and return it in x. */
+#define NEW_TICK(x)                             \
+    do {                                        \
+       uint32_t not_##x ;                       \
+       not_##x = get_tick();                    \
+       do {                                     \
+           x = get_tick();                      \
+       } while (x == not_##x);                  \
+    } while (false)
+
+static void
+set_delay_parameters(uint16_t n, uint16_t d)
+{
+    adj_up = n % d;
+    adj_dn = d * 2;
+    step = n / d;
+    initial = adj_dn - adj_up;
+}
+
 static void
 calibrate_delay()
 {
-    uint32_t first = get_tick();
-    uint32_t second;
-
-    do {
-        second = get_tick();
-    } while (first == second);
-
-    uint32_t third;
-    uint32_t iterations = 0;
-
-    /* Get a first estimate of the number of iterations per 18.2Hz tick. This
-     * will be an underestimate due to the overhead of calling get_tick inside
-     * the loop.
-     */
-    do {
-        iterations++;
-        third = get_tick();
-    } while (third == second);
-
-#ifdef DEBUG_LOG
-    printf("iterations = %lu\n", (unsigned long) iterations);
-#endif
-
-    /* Refine the initial estimate by rerunning the loop without calling
-     * get_tick inside the loop. Use the actual delay loop. This is done by
-     * selecting parameter values that will fix the number of iterations
-     * through the delay loop at FACTOR * iterations.
-     *
-     * These values are selected so that the if-statement inside the loop will
-     * execute 50% of the time. This gives a more accurate representation of
-     * the per-loop execution time.
-     */
-#define FACTOR 4ul
-
-    step = 1;
-    adj_up = 1;
-    adj_dn = 4;
-    initial = -2;
-
-    iterations *= FACTOR / 2;
-
-    do {
-        iterations *= 2;
-
-        third = get_tick();
-        do {
-            first = get_tick();
-        } while (first == third);
-
-        wait_44khz(3u * iterations / 2u);
-        second = get_tick();
-    } while ((second - first) < 4);
-
-#ifdef DEBUG_LOG
-    printf("%lu ticks for %lu iterations\n",
-           (unsigned long)(second - first),
-           (unsigned long)(iterations * 32));
-#endif
+    printf("Calibrating delay loop...\n");
 
     /* There are 1,573,040 ticks in a day. A day is 24h * 60m * 60s = 86,400
      * seconds. 1573040 / 86400 is the exact representation of the PC 18.2Hz
      * clock. That fraction reduces to 19663 / 1080.
      *
-     * ticks * 19663 / 1080 = samples * 44100
-     * ticks * 19663 / (1080 * 44100) = samples
-     * ticks * 2809 / 6804000 = samples
+     * (ticks * 1080) / (19663 * iterations) = samples / 44100
+     * (ticks * 1080 * 44100) / (19663 * iterations) = samples
+     * (ticks * 6804000) / (2809 * iterations) = samples
      *
-     * 1 tick = iterations / (second - first)
+     * 4 ticks is very close to 8 * 1211.
+     *
+     * (4 * 6804000) / (2809 * iterations) = (8 * 1211)
+     *
+     * What does this mean? We want the measured time to be 8 * 1211 samples,
+     * and that is equivalent to 4 * 18.2Hz ticks. Search for a denominator
+     * that balances the equation.
+     *
+     * The search is performed using a double binary search. Start with a
+     * denominator of 1. If the resulting wait is not long enough, double the
+     * demoninator until the wait is at least 4 ticks. Then perform a
+     * traditional binary search between the current and previous denominator
+     * to find the smallest denominator that is 4 ticks.
+     *
+     * We can trade some accuracy for some performance by reducing the
+     * numerator by some factor so that it will fit in a uint16_t.
      */
-    uint32_t n = 2809 * (iterations / FACTOR);
-    uint32_t d = (second - first) * (6804000ul / FACTOR);
-    assert(6804000ul % FACTOR == 0);
+#define TICKS 4
+    assert((TICKS * 6804000ul) % 1008 == 0);
+    assert((TICKS * 6804000ul) / 1008 < (UINT16_MAX / 2));
+    uint16_t n = (TICKS * 6804000ul) / 1008;
+    /* The remaining prime factors of TICKS * 6704000. */
+    const uint16_t factors[] = {
+        2,
+        3,
+        3,
+        3,
+        5,
+        5,
+        5
+    };
+
+    unsigned next_factor = 0;
+    uint16_t old_d = 0;
+    uint16_t d = 1;
+    uint16_t lo = 0;
+    uint16_t hi = 0;
+
+    unsigned i = 0;
+    do {
+#ifdef DEBUG_LOG
+        printf("trying d = %u, lo = %u, hi = %u\n", d, lo, hi);
+#endif
+        set_delay_parameters(n, d);
+
+        uint32_t before;
+
+        NEW_TICK(before);
+        wait_44khz(1211);
+        wait_44khz(1211);
+        wait_44khz(1211);
+        wait_44khz(1211);
+        wait_44khz(1211);
+        wait_44khz(1211);
+        wait_44khz(1211);
+        wait_44khz(1211);
+
+        const uint32_t after = get_tick();
+        const uint32_t delta = after - before;
+
+        old_d = d;
+        if (lo == 0) {
+            if (delta < TICKS) {
+                if (d == 0x7fff) {
+                    n /= factors[next_factor++];
+                    d = 1;
+                    continue;
+                }
+
+                /* If the next power of 2 would overflow, use UINT16_MAX
+                 * instead.
+                 */
+                d *= 2;
+                if (d == 0x8000)
+                    d = 0x7fff;
+
+            } else {
+                /* We want the previous step as the lower bound. For 0xffff,
+                 * the previous step was 0x8000.
+                 */
+                lo = d == 0x7fff ? 0x4000 : d / 2;
+                hi = d;
+                d = (hi + lo) / 2;
+
+                if (lo == 0) {
+                    printf("CPU is too slow for delay calibration.\n");
+                    exit(-1);
+                }
+            }
+        } else {
+            if (delta < TICKS) {
+                lo = d;
+            } else {
+                hi = d;
+            }
+
+            /* Since hi and lo fit within 15 bits, nothing special needs to be
+             * done to avoid overflow when averaging them.
+             */
+            assert(hi < 0x8000 && lo < 0x8000);
+            d = (hi + lo) / 2;
+        }
+
+        i++;
+    } while (old_d != d);
+
+    d = lo - 1;
 
 #ifdef DEBUG_LOG
-    printf("%lu / %lu\n", n, d);
+    printf("finished d = %u, lo = %u, hi = %u, %u attempts\n",
+           d, lo, hi, i);
 #endif
 
-    adj_up = d % n;
-    adj_dn = n * 2;
-    step = d / n;
-    initial = adj_up - adj_dn;
+    set_delay_parameters(n, d);
 
 #ifdef DEBUG_LOG
-    printf("Delay loop parameters: adj_up = %ld, adj_dn = %ld, initial = %ld, "
-           "step = %u\n",
-           adj_up, adj_dn, initial, step);
+    printf("Delay loop parameters: n = %u, d = %u, adj_up = %d, adj_dn = %d, "
+           "initial = %d, step = %u\n",
+           n, d, adj_up, adj_dn, initial, step);
+#else
+    printf("Delay loop parameters: n = %u, d = %u\n",
+           n, d);
 #endif
 }
 
