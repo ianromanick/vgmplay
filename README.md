@@ -24,9 +24,7 @@ TODO:
 
 - Enable support for song loops.
 
-- Enable support for later Tandy 1000 models. These put the sound chip at IO
-  port 0x1e0 instead of 0xc0. Add a command line option for the IO port. Is it
-  possible to autodetect?
+- Autodetect AT systems to set PSG base IO address to 1E0.
 
 - Enable support for dual SN76496 chips via ISA card add on. Many arcade games
   (i.e., most Sega System 1 games) used two of these chips.

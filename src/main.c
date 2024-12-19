@@ -25,6 +25,8 @@ struct vgm_buf {
     uint32_t pos;
 };
 
+static unsigned psg0_io = 0xc0;
+
 /*
  * \param gd3_offset True offset of the start of the GD3 block in the
  * file.
@@ -365,10 +367,10 @@ calibrate_delay()
 static void
 sn76489_off(void)
 {
-    outp(0xc0, 0x9f);
-    outp(0xc0, 0xbf);
-    outp(0xc0, 0xdf);
-    outp(0xc0, 0xff);
+    outp(psg0_io, 0x9f);
+    outp(psg0_io, 0xbf);
+    outp(psg0_io, 0xdf);
+    outp(psg0_io, 0xff);
 }
 
 static void
@@ -579,7 +581,7 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
             /* SN76489 / SN76496 write */
             uint8_t d = get_uint8(v);
 
-            outp(0xc0, d);
+            outp(psg0_io, d);
             break;
         }
 
@@ -737,6 +739,12 @@ show_help(const char *progname)
 "    /delay:####:#### - specify delay loop control parameters. The parameters\n"
 "                       are two numbers between 1 and 32767 (inclusive).\n"
 "                       /delay:27000:23895 works well on Tandy 1000HX.\n"
+"    /psg:###         - Specify IO port address for SN76489 PSG (programmable\n"
+"                       sound generator). Default value C0 is for PCjr and all\n"
+"                       Tandy 1000 except RLX and RSX. For Tandy 1000RLX and\n"
+"                       Tandy 1000RSX, use /psg:1e0. For PicoGUS and\n"
+"                       lo-tech.co.uk Tandy Sound Card in default\n"
+"                       configuration, use /psg:2c0.\n"
 "    /help            - Display this help message.\n"
            "\n"
            "Required parameter:\n"
@@ -774,6 +782,19 @@ parse_args(int argc, char **argv)
                 }
 
                 set_delay_parameters(n, d);
+            } else if (strncmp(argv[i], "/psg:", 5) == 0) {
+                unsigned long n = strtol(&argv[i][5], NULL, 16);
+
+                /* Ports above 3FF only exist on EISA machines. I will make
+                 * the leap of faith that no card exists to put the PSG in the
+                 * EISA range.
+                 */
+                if (n > 0x3ff) {
+                    printf("Invalid IO port address specificed: %x\n", n);
+                    return -1;
+                }
+
+                psg0_io = n;
             } else {
                 printf("Unknown parameter \"%s\".\n\n",
                        argv[i]);
