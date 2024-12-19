@@ -11,7 +11,7 @@ struct vgm_header {
     uint32_t eof_offset;
     uint32_t version;
     uint32_t sn76489_clock;
-    uint32_t ym2314_clock;
+    uint32_t ym2413_clock;
     uint32_t gd3_offset;
     uint32_t total_samples;
     uint32_t loop_offset;
