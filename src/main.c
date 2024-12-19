@@ -833,10 +833,18 @@ main(int argc, char **argv)
 
     printf("header version = %x\n", header.version);
 
-    if (header.version < 0x150) {
-        printf("Header version too old. At least 150 is required.\n");
-        goto fail;
+    if (header.version < 0x110) {
+        header.sn76489_fb = 9;
+        header.sn76489_fsr_width = 16;
+
+        if (header.ym2413_clock > 5000000) {
+            header.ym2612_clock = header.ym2413_clock;
+            header.ym2413_clock = 0;
+        }
     }
+
+    if (header.version < 0x150)
+        header.vgm_data_offset = 0x0c;
 
     if (header.version < 0x151) {
         header.sn76489_flags = 0;
