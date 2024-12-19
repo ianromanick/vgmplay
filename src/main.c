@@ -26,6 +26,7 @@ struct vgm_buf {
 };
 
 static unsigned psg0_io = 0xc0;
+static unsigned psg1_io = 0;
 
 /*
  * \param gd3_offset True offset of the start of the GD3 block in the
@@ -371,6 +372,13 @@ sn76489_off(void)
     outp(psg0_io, 0xbf);
     outp(psg0_io, 0xdf);
     outp(psg0_io, 0xff);
+
+    if (psg1_io != 0) {
+        outp(psg1_io, 0x9f);
+        outp(psg1_io, 0xbf);
+        outp(psg1_io, 0xdf);
+        outp(psg1_io, 0xff);
+    }
 }
 
 static void
@@ -405,7 +413,16 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
         uint8_t command = get_uint8(v);
 
         switch (command) {
-        case 0x30: /* reserved one-byte command. */
+        case 0x30: {
+            /* Secondary SN76489 / SN76496 write */
+            uint8_t d = get_uint8(v);
+
+            if (psg1_io != 0)
+                outp(psg1_io, d);
+
+            break;
+        }
+
         case 0x31: /* AY8910 stereo mask */
         case 0x32: /* reserved one-byte command. */
         case 0x33: /* reserved one-byte command. */
@@ -755,6 +772,8 @@ show_help(const char *progname)
 static int
 parse_args(int argc, char **argv)
 {
+    unsigned num_psg = 0;
+
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '/') {
             if (strcmp(argv[i], "/help") == 0 ||
@@ -794,7 +813,20 @@ parse_args(int argc, char **argv)
                     return -1;
                 }
 
-                psg0_io = n;
+                if (num_psg > 1) {
+                    /* Don't increment num_psg in this case. This prevents
+                     * problems for "that guy" who specifies so many /psg
+                     * options that the counter wraps around.
+                     */
+                    printf("Only two PSG chips supported. Third and later /psg option ignored.\n");
+                } else {
+                    if (num_psg == 0)
+                        psg0_io = n;
+                    else if (num_psg == 1)
+                        psg1_io = n;
+
+                    num_psg++;
+                }
             } else {
                 printf("Unknown parameter \"%s\".\n\n",
                        argv[i]);
@@ -871,10 +903,20 @@ main(int argc, char **argv)
         header.ay8910_clock = 0;
     }
 
+    const bool dual_psg = (header.sn76489_clock & 0x40000000UL) != 0;
+
+    header.sn76489_clock &= ~0x40000000UL;
+
     printf("SN76489 clock = %lu\n", (unsigned long)header.sn76489_clock);
     printf("SN76489 feedback = 0x%x\n", header.sn76489_fb);
     printf("SN76489 FSR width = %d\n", header.sn76489_fsr_width);
     printf("SN76489 flags = 0x%x\n", header.sn76489_flags);
+    printf("SN76489 dual PSG mode = %sabled\n", dual_psg ? "en" : "dis");
+
+    if (dual_psg && psg1_io == 0) {
+        printf("\nWARNING: VGM specifies dual PSG, but only one PSG IO address specified.\n"
+               "         Use the /psg option to specify each PSG IO address.\n\n");
+    }
 
     if (header.ay8910_clock != 0) {
         printf("AY-8910 clock = %lu\n", (unsigned long)header.ay8910_clock);

@@ -25,6 +25,3 @@ TODO:
 - Enable support for song loops.
 
 - Autodetect AT systems to set PSG base IO address to 1E0.
-
-- Enable support for dual SN76496 chips via ISA card add on. Many arcade games
-  (i.e., most Sega System 1 games) used two of these chips.
