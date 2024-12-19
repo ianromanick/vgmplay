@@ -731,14 +731,13 @@ show_help(const char *progname)
 {
     printf("Usage: %s [/delay:####:####] filename.vgm\n"
            "\n"
-           "Optional parameters:\n"
-           "    /delay:####:#### - specify delay loop control parameters. "
-           "The parameters\n"
-           "                       are two numbers between 1 and 32767 "
-           "(inclusive).\n"
-           "                       /delay:27000:23895 works well on Tandy "
-           "1000HX.\n"
-           "    /help            - Display this help message.\n"
+"Optional parameters:\n"
+//        1         2         3         4         5         6         7
+//23456789012345678901234567890123456789012345678901234567890123456789012345678
+"    /delay:####:#### - specify delay loop control parameters. The parameters\n"
+"                       are two numbers between 1 and 32767 (inclusive).\n"
+"                       /delay:27000:23895 works well on Tandy 1000HX.\n"
+"    /help            - Display this help message.\n"
            "\n"
            "Required parameter:\n"
            "    filename.vgm - Uncompressed VGM file to be played.\n",
