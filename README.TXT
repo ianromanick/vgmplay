@@ -46,31 +46,37 @@ Optional parameters:
                 default delay parameters (as /delay). Currently supported
                 modes are:
 
-                tandy - Sets /psg:c0. This is the default mode.
+                tandy - Enables SN76496 playback. Sets /psg:c0. This is the
+                    default mode.
 
-                tandy1000, pcjr - Sets /psg:c0 and /delay:1027:540. These
-                    delay parameters are based on 4.77MHz 8088 CPU. Parameters
-                    for NEC V20 CPU may be different.
+                tandy1000, pcjr - Enables SN76496 playback. Sets /psg:c0 and
+                    /delay:1027:540. These delay parameters are based on
+                    4.77MHz 8088 CPU. Parameters for NEC V20 CPU may be
+                    different.
 
-                tandy1000ex, tandy1000hx, tandy1000sx - Sets /psg:c0 and
-                    /delay:289:270. These delay parameters are based on 7.1MHz
-                    8088 CPU. Parameters for NEC V20 CPU may be different.
+                tandy1000ex, tandy1000hx, tandy1000sx - Enables SN76496
+                    playback. Sets /psg:c0 and /delay:289:270. These delay
+                    parameters are based on 7.1MHz 8088 CPU. Parameters for
+                    NEC V20 CPU may be different.
 
-                tandy1000sl, tandy1000sl2, tandy1000rl, tandy1000tl3 - Sets
-                    /psg:c0. Performance characteristics of these Tandy 1000
+                tandy1000sl, tandy1000sl2, tandy1000rl, tandy1000tl3 - Enables
+                    SN76496 playback. Sets /psg:c0. Performance
+                    characteristics of these Tandy 1000 machines are unknown,
+                    so the delay parameters are unset.
+
+                tandy1000tx, tandy1000tl, tandy1000tl2 - Enables SN76496
+                    playback. Sets /psg:c0 and /delay:6965:14919. These delay
+                    parameters are based on 8MHz 80286 CPU.
+
+                tandy1000rlx - Enables SN76496 playback. Sets
+                    /psg:1e0. Performance characteristics of these Tandy 1000
                     machines are unknown, so the delay parameters are unset.
 
-                tandy1000tx, tandy1000tl, tandy1000tl2 - Sets /psg:c0 and
-                    /delay:6965:14919. These delay parameters are based on
-                    8MHz 80286 CPU.
+                tandy1000rsx - Enables SN76496 playback. Sets /psg:1e0 and
+                    /delay:101:1079. Performance characteristics of the Tandy
+                    1000RSX was estimated using a generic 25MHz 386sx system
+                    with a PicoGUS.
 
-                tandy1000rlx - Sets /psg:1e0. Performance characteristics of
-                    these Tandy 1000 machines are unknown, so the delay
-                    parameters are unset.
-
-                tandy1000rsx - Sets /psg:1e0 and /delay:101:1079. Performance
-                    characteristics of the Tandy 1000RSX was estimated using a
-                    generic 25MHz 386sx system with a PicoGUS.
 
                 If /mode is used in conjunction with a second PSG installed
                 via add-on board, /psg must also be specified for each

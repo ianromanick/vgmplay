@@ -27,6 +27,11 @@ struct vgm_buf {
     uint32_t pos;
 };
 
+enum {
+    sn76489 = 0,
+};
+
+static int psg_mode = sn76489;
 static unsigned psg0_io = 0xc0;
 static unsigned psg1_io = 0;
 
@@ -370,16 +375,18 @@ calibrate_delay()
 static void
 psg_off(void)
 {
-    outp(psg0_io, 0x9f);
-    outp(psg0_io, 0xbf);
-    outp(psg0_io, 0xdf);
-    outp(psg0_io, 0xff);
+    if (psg_mode == sn76489) {
+        outp(psg0_io, 0x9f);
+        outp(psg0_io, 0xbf);
+        outp(psg0_io, 0xdf);
+        outp(psg0_io, 0xff);
 
-    if (psg1_io != 0) {
-        outp(psg1_io, 0x9f);
-        outp(psg1_io, 0xbf);
-        outp(psg1_io, 0xdf);
-        outp(psg1_io, 0xff);
+        if (psg1_io != 0) {
+            outp(psg1_io, 0x9f);
+            outp(psg1_io, 0xbf);
+            outp(psg1_io, 0xdf);
+            outp(psg1_io, 0xff);
+        }
     }
 }
 
@@ -776,11 +783,12 @@ struct known_mode {
     uint16_t delay_d;
     uint16_t psg0_io;
     uint16_t psg1_io;
+    uint16_t psg_mode;
 };
 
 static const struct known_mode known_modes[] = {
     /* Any system with Tandy sound. */
-    { "tandy",            0,     0, 0x00c0, 0x0000 },
+    { "tandy",            0,     0, 0x00c0, 0x0000, sn76489 },
 
     /* 4.77MHz 8088 systems.
      *
@@ -788,56 +796,56 @@ static const struct known_mode known_modes[] = {
      * experimentally. Platforms with same speed CPUs are assumed to perform
      * similarly.
      */
-    { "tandy1000",     1027,   540, 0x00c0, 0x0000 },
-    { "pcjr",          1027,   540, 0x00c0, 0x0000 },
+    { "tandy1000",     1027,   540, 0x00c0, 0x0000, sn76489 },
+    { "pcjr",          1027,   540, 0x00c0, 0x0000, sn76489 },
 
     /* 7.16MHz 8088 systems.
      *
      * Values for Tandy 1000HX were derived experimentally. Platforms with
      * same speed CPUs are assumed to perform similarly.
      */
-    { "tandy1000ex",    289,   270, 0x00c0, 0x0000 },
-    { "tandy1000hx",    289,   270, 0x00c0, 0x0000 },
-    { "tandy1000sx",    289,   270, 0x00c0, 0x0000 },
+    { "tandy1000ex",    289,   270, 0x00c0, 0x0000, sn76489 },
+    { "tandy1000hx",    289,   270, 0x00c0, 0x0000, sn76489 },
+    { "tandy1000sx",    289,   270, 0x00c0, 0x0000, sn76489 },
 
     /* 8MHz 8088 systems.
      *
      * Performance characteristics of these Tandy 1000 machines are unknown,
      * so leave the delay parameters unset.
      */
-    { "tandy1000sl",      0,     0, 0x00c0, 0x0000 },
-    { "tandy1000sl2",     0,     0, 0x00c0, 0x0000 },
+    { "tandy1000sl",      0,     0, 0x00c0, 0x0000, sn76489 },
+    { "tandy1000sl2",     0,     0, 0x00c0, 0x0000, sn76489 },
 
     /* 9.56MHz 8088 system.
      *
      * Performance characteristics of these Tandy 1000 machines are unknown,
      * so leave the delay parameters unset.
      */
-    { "tandy1000rl",      0,     0, 0x00c0, 0x0000 },
+    { "tandy1000rl",      0,     0, 0x00c0, 0x0000, sn76489 },
 
     /* 8MHz 286 systems.
      *
      * Values for Tandy 1000TL were derived experimentally. Platforms with
      * same speed CPUs are assumed to perform similarly.
      */
-    { "tandy1000tx",   6965, 14919, 0x00c0, 0x0000 },
-    { "tandy1000tl",   6965, 14919, 0x00c0, 0x0000 },
-    { "tandy1000tl2",  6965, 14919, 0x00c0, 0x0000 },
+    { "tandy1000tx",   6965, 14919, 0x00c0, 0x0000, sn76489 },
+    { "tandy1000tl",   6965, 14919, 0x00c0, 0x0000, sn76489 },
+    { "tandy1000tl2",  6965, 14919, 0x00c0, 0x0000, sn76489 },
 
     /* 10MHz 286 systems.
      *
      * Performance characteristics of these Tandy 1000 machines are unknown,
      * so leave the delay parameters unset.
      */
-    { "tandy1000tl3",     0,     0, 0x00c0, 0x0000 },
-    { "tandy1000rlx",     0,     0, 0x01e0, 0x0000 },
+    { "tandy1000tl3",     0,     0, 0x00c0, 0x0000, sn76489 },
+    { "tandy1000rlx",     0,     0, 0x01e0, 0x0000, sn76489 },
 
     /* 25MHz 386sx systems.
      *
      * Performance characteristics of the Tandy 1000RSX were estimated using a
      * generic 25MHz 386sx system with a PicoGUS.
      */
-    { "tandy1000rsx",   101,  1079, 0x01e0, 0x0000 },
+    { "tandy1000rsx",   101,  1079, 0x01e0, 0x0000, sn76489 },
 };
 
 static int
@@ -885,6 +893,7 @@ parse_args(int argc, char **argv)
 
                         psg0_io = known_modes[j].psg0_io;
                         psg1_io = known_modes[j].psg1_io;
+                        psg_mode = known_modes[j].psg_mode;
                         break;
                     }
                 }
@@ -1004,11 +1013,13 @@ main(int argc, char **argv)
 
     header.sn76489_clock &= ~0x40000000UL;
 
-    printf("SN76489 clock = %lu\n", (unsigned long)header.sn76489_clock);
-    printf("SN76489 feedback = 0x%x\n", header.sn76489_fb);
-    printf("SN76489 FSR width = %d\n", header.sn76489_fsr_width);
-    printf("SN76489 flags = 0x%x\n", header.sn76489_flags);
-    printf("SN76489 dual PSG mode = %sabled\n", dual_psg ? "en" : "dis");
+    if (header.sn76489_clock != 0) {
+        printf("SN76489 clock = %lu\n", (unsigned long)header.sn76489_clock);
+        printf("SN76489 feedback = 0x%x\n", header.sn76489_fb);
+        printf("SN76489 FSR width = %d\n", header.sn76489_fsr_width);
+        printf("SN76489 flags = 0x%x\n", header.sn76489_flags);
+        printf("SN76489 dual PSG mode = %sabled\n", dual_psg ? "en" : "dis");
+    }
 
     if (dual_psg && psg1_io == 0) {
         printf("\nWARNING: VGM specifies dual PSG, but only one PSG IO address specified.\n"
@@ -1026,7 +1037,8 @@ main(int argc, char **argv)
         /* The only VGM files that I have observed with this quirk are
          * from the Tandy 1000 version of Castlevania.
          */
-        printf("\nAY-8910 is assumed to be placeholder for PC speaker.\n");
+        if (psg_mode == sn76489 && header.sn76489_clock != 0)
+            printf("\nAY-8910 is assumed to be placeholder for PC speaker.\n");
     }
 
 #define VALIDATE_CHIP(clk, name)					   \
