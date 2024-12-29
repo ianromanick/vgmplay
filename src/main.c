@@ -777,8 +777,9 @@ parse_args(int argc, char **argv)
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '/') {
             if (strcasecmp(argv[i], "/help") == 0 ||
-                strcasecmp(argv[i], "/h") == 0 ||
-                strcasecmp(argv[i], "/?") == 0) {
+                ((argv[i][1] == '?' ||
+                  argv[i][1] == 'h' || argv[i][1] == 'H') &&
+                 argv[i][2] == '\0')) {
                 return -1;
             } else if (strncasecmp(argv[i], "/delay:", 7) == 0) {
                 unsigned long n = atol(&argv[i][7]);
