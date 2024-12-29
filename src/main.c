@@ -755,21 +755,18 @@ show_help(const char *progname)
 "Optional parameters:\n"
 //        1         2         3         4         5         6         7
 //23456789012345678901234567890123456789012345678901234567890123456789012345678
-"    /delay:####:#### - specify delay loop control parameters. The parameters\n"
+"    /delay:####:#### - Specify delay loop control parameters. The parameters\n"
 "                       are two numbers between 1 and 32767 (inclusive).\n"
-"                       /delay:27000:23895 works well on Tandy 1000HX.\n"
-"    /mode:NAME       - Specify an output mode. May set PSG IO address (as /psg\n"
-"                       and default delay parameters (as /delay).\n"
+"    /mode:NAME       - Specify an output mode. Sets PSG IO address (as /psg\n"
+"                       and may set default delay parameters (as /delay).\n"
 "    /psg:###         - Specify IO port address for SN76489 PSG (programmable\n"
-"                       sound generator). Default value C0 is for PCjr and all\n"
-"                       Tandy 1000 except RLX and RSX. For Tandy 1000RLX and\n"
-"                       Tandy 1000RSX, use /psg:1e0. For PicoGUS and\n"
-"                       lo-tech.co.uk Tandy Sound Card in default\n"
-"                       configuration, use /psg:2c0.\n"
+"                       sound generator). Default value is C0.\n"
 "    /help            - Display this help message.\n"
            "\n"
            "Required parameter:\n"
            "    filename.vgm - Uncompressed VGM file to be played.\n",
+           "\n"
+           "See README.TXT for more details.\n",
            progname);
 }
 
