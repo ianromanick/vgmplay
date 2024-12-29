@@ -776,11 +776,11 @@ parse_args(int argc, char **argv)
 
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '/') {
-            if (strcmp(argv[i], "/help") == 0 ||
-                strcmp(argv[i], "/h") == 0 ||
-                strcmp(argv[i], "/?") == 0) {
+            if (strcasecmp(argv[i], "/help") == 0 ||
+                strcasecmp(argv[i], "/h") == 0 ||
+                strcasecmp(argv[i], "/?") == 0) {
                 return -1;
-            } else if (strncmp(argv[i], "/delay:", 7) == 0) {
+            } else if (strncasecmp(argv[i], "/delay:", 7) == 0) {
                 unsigned long n = atol(&argv[i][7]);
 
                 char *next = strchr(&argv[i][7], ':');
@@ -801,7 +801,7 @@ parse_args(int argc, char **argv)
                 }
 
                 set_delay_parameters(n, d);
-            } else if (strncmp(argv[i], "/psg:", 5) == 0) {
+            } else if (strncasecmp(argv[i], "/psg:", 5) == 0) {
                 unsigned long n = strtol(&argv[i][5], NULL, 16);
 
                 /* Ports above 3FF only exist on EISA machines. I will make
