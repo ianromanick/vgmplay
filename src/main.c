@@ -782,17 +782,17 @@ parse_args(int argc, char **argv)
                  argv[i][2] == '\0')) {
                 return -1;
             } else if (strncasecmp(argv[i], "/delay:", 7) == 0) {
-                unsigned long n = atol(&argv[i][7]);
+                char *next;
+                unsigned long n = strtol(&argv[i][7], &next, 10);
 
-                char *next = strchr(&argv[i][7], ':');
-                if (next == NULL) {
+                if (*next != ':') {
                     printf("Malformed parameter \"%s\".\n\n",
                            argv[i]);
                     return -1;
                 }
 
                 /* The +1 skips over the ':'. */
-                unsigned long d = atol(next + 1);
+                unsigned long d = strtol(next + 1, NULL, 10);
 
                 if (d == 0 || d > 0x7fff || n == 0 || n > 0x7fff) {
                     printf("Each delay loop parameter must be in the range "
