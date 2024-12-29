@@ -366,7 +366,7 @@ calibrate_delay()
 }
 
 static void
-sn76489_off(void)
+psg_off(void)
 {
     outp(psg0_io, 0x9f);
     outp(psg0_io, 0xbf);
@@ -735,13 +735,13 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
         }
     }
 
-    sn76489_off();
+    psg_off();
     pc_speaker_stop();
     return;
 
  parse_error:
     printf("parse error\n");
-    sn76489_off();
+    psg_off();
     return;
 }
 
