@@ -16,6 +16,8 @@
 #include <conio.h>
 #include "vgm.h"
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
 /* Uncomment the next line to get added debug logging. */
 //#define DEBUG_LOG
 
@@ -748,7 +750,7 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
 static void
 show_help(const char *progname)
 {
-    printf("Usage: %s [/delay:####:####] [/psg:###] filename.vgm\n"
+    printf("Usage: %s [/delay:####:####] [/psg:###] [/mode:NAME] filename.vgm\n"
            "\n"
 "Optional parameters:\n"
 //        1         2         3         4         5         6         7
@@ -756,6 +758,8 @@ show_help(const char *progname)
 "    /delay:####:#### - specify delay loop control parameters. The parameters\n"
 "                       are two numbers between 1 and 32767 (inclusive).\n"
 "                       /delay:27000:23895 works well on Tandy 1000HX.\n"
+"    /mode:NAME       - Specify an output mode. May set PSG IO address (as /psg\n"
+"                       and default delay parameters (as /delay).\n"
 "    /psg:###         - Specify IO port address for SN76489 PSG (programmable\n"
 "                       sound generator). Default value C0 is for PCjr and all\n"
 "                       Tandy 1000 except RLX and RSX. For Tandy 1000RLX and\n"
@@ -768,6 +772,76 @@ show_help(const char *progname)
            "    filename.vgm - Uncompressed VGM file to be played.\n",
            progname);
 }
+
+struct known_mode {
+    const char *name;
+    uint16_t delay_n;
+    uint16_t delay_d;
+    uint16_t psg0_io;
+    uint16_t psg1_io;
+};
+
+static const struct known_mode known_modes[] = {
+    /* Any system with Tandy sound. */
+    { "tandy",            0,     0, 0x00c0, 0x0000 },
+
+    /* 4.77MHz 8088 systems.
+     *
+     * Values for Tandy 1000HX running at 4.77MHz were derived
+     * experimentally. Platforms with same speed CPUs are assumed to perform
+     * similarly.
+     */
+    { "tandy1000",     1027,   540, 0x00c0, 0x0000 },
+    { "pcjr",          1027,   540, 0x00c0, 0x0000 },
+
+    /* 7.16MHz 8088 systems.
+     *
+     * Values for Tandy 1000HX were derived experimentally. Platforms with
+     * same speed CPUs are assumed to perform similarly.
+     */
+    { "tandy1000ex",    289,   270, 0x00c0, 0x0000 },
+    { "tandy1000hx",    289,   270, 0x00c0, 0x0000 },
+    { "tandy1000sx",    289,   270, 0x00c0, 0x0000 },
+
+    /* 8MHz 8088 systems.
+     *
+     * Performance characteristics of these Tandy 1000 machines are unknown,
+     * so leave the delay parameters unset.
+     */
+    { "tandy1000sl",      0,     0, 0x00c0, 0x0000 },
+    { "tandy1000sl2",     0,     0, 0x00c0, 0x0000 },
+
+    /* 9.56MHz 8088 system.
+     *
+     * Performance characteristics of these Tandy 1000 machines are unknown,
+     * so leave the delay parameters unset.
+     */
+    { "tandy1000rl",      0,     0, 0x00c0, 0x0000 },
+
+    /* 8MHz 286 systems.
+     *
+     * Values for Tandy 1000TL were derived experimentally. Platforms with
+     * same speed CPUs are assumed to perform similarly.
+     */
+    { "tandy1000tx",   6965, 14919, 0x00c0, 0x0000 },
+    { "tandy1000tl",   6965, 14919, 0x00c0, 0x0000 },
+    { "tandy1000tl2",  6965, 14919, 0x00c0, 0x0000 },
+
+    /* 10MHz 286 systems.
+     *
+     * Performance characteristics of these Tandy 1000 machines are unknown,
+     * so leave the delay parameters unset.
+     */
+    { "tandy1000tl3",     0,     0, 0x00c0, 0x0000 },
+    { "tandy1000rlx",     0,     0, 0x01e0, 0x0000 },
+
+    /* 25MHz 386sx systems.
+     *
+     * Performance characteristics of the Tandy 1000RSX were estimated using a
+     * generic 25MHz 386sx system with a PicoGUS.
+     */
+    { "tandy1000rsx",   101,  1079, 0x01e0, 0x0000 },
+};
 
 static int
 parse_args(int argc, char **argv)
@@ -802,6 +876,31 @@ parse_args(int argc, char **argv)
                 }
 
                 set_delay_parameters(n, d);
+            } else if (strncasecmp(argv[i], "/mode:", 6) == 0) {
+                unsigned j;
+
+                for (j = 0; j < ARRAY_SIZE(known_modes); j++) {
+                    if (strcasecmp(argv[i] + 6, known_modes[j].name) == 0) {
+                        if (known_modes[j].delay_n != 0) {
+                            set_delay_parameters(known_modes[j].delay_n,
+                                                 known_modes[j].delay_d);
+                        }
+
+                        psg0_io = known_modes[j].psg0_io;
+                        psg1_io = known_modes[j].psg1_io;
+                        break;
+                    }
+                }
+
+                if (j == ARRAY_SIZE(known_modes)) {
+                    printf("Unknown mode \"%s\". Known modes are:\n",
+                           argv[i] + 6);
+
+                    for (j = 0; j < ARRAY_SIZE(known_modes); j++)
+                        printf("    %s\n", known_modes[j].name);
+
+                    return -1;
+                }
             } else if (strncasecmp(argv[i], "/psg:", 5) == 0) {
                 unsigned long n = strtol(&argv[i][5], NULL, 16);
 
