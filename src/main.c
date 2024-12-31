@@ -748,7 +748,7 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
 static void
 show_help(const char *progname)
 {
-    printf("Usage: %s [/delay:####:####] filename.vgm\n"
+    printf("Usage: %s [/delay:####:####] [/psg:###] filename.vgm\n"
            "\n"
 "Optional parameters:\n"
 //        1         2         3         4         5         6         7
