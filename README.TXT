@@ -77,6 +77,8 @@ Optional parameters:
                     1000RSX was estimated using a generic 25MHz 386sx system
                     with a PicoGUS.
 
+                msmb - Enables AY-3-8910 playback. Sets /psg:300 /psg:302. The
+                    Mindscape Music Board has two AY-3-8913 chips.
 
                 If /mode is used in conjunction with a second PSG installed
                 via add-on board, /psg must also be specified for each

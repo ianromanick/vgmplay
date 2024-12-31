@@ -29,6 +29,7 @@ struct vgm_buf {
 
 enum {
     sn76489 = 0,
+    ay8910,
 };
 
 static int psg_mode = sn76489;
@@ -386,6 +387,22 @@ psg_off(void)
             outp(psg1_io, 0xbf);
             outp(psg1_io, 0xdf);
             outp(psg1_io, 0xff);
+        }
+    } else {
+        outp(psg0_io + 0, 0x08);
+        outp(psg0_io + 1, 0x00);
+        outp(psg0_io + 0, 0x09);
+        outp(psg0_io + 1, 0x00);
+        outp(psg0_io + 0, 0x0a);
+        outp(psg0_io + 1, 0x00);
+
+        if (psg1_io != 0) {
+            outp(psg1_io + 0, 0x08);
+            outp(psg1_io + 1, 0x00);
+            outp(psg1_io + 0, 0x09);
+            outp(psg1_io + 1, 0x00);
+            outp(psg1_io + 0, 0x0a);
+            outp(psg1_io + 1, 0x00);
         }
     }
 }
@@ -755,6 +772,315 @@ play_Tandy_sound(struct vgm_buf *v, struct vgm_header *header)
 }
 
 static void
+play_AY8910_sound(struct vgm_buf *v, struct vgm_header *header)
+{
+    bool done = false;
+
+    while (!done) {
+        uint8_t command = get_uint8(v);
+
+        switch (command) {
+        case 0x30: /* reserved one-byte command. */
+        case 0x31: /* AY8910 stereo mask */
+        case 0x32: /* reserved one-byte command. */
+        case 0x33: /* reserved one-byte command. */
+        case 0x34: /* reserved one-byte command. */
+        case 0x35: /* reserved one-byte command. */
+        case 0x36: /* reserved one-byte command. */
+        case 0x37: /* reserved one-byte command. */
+        case 0x38: /* reserved one-byte command. */
+        case 0x39: /* reserved one-byte command. */
+        case 0x3a: /* reserved one-byte command. */
+        case 0x3b: /* reserved one-byte command. */
+        case 0x3c: /* reserved one-byte command. */
+        case 0x3d: /* reserved one-byte command. */
+        case 0x3e: /* reserved one-byte command. */
+        case 0x3f: /* reserved one-byte command. */
+        case 0x4f: /* Game Gear PSG stereo */
+        case 0x50: /* SN76489 / SN76496 write */
+        case 0x94: /* Stop stream */
+            printf("command = 0x%02x\n", (unsigned) command);
+            skip_bytes(v, 1);
+            break;
+
+        case 0x40: /* Mikey write */
+        case 0x41: /* reserved two-byte command. */
+        case 0x42: /* reserved two-byte command. */
+        case 0x43: /* reserved two-byte command. */
+        case 0x44: /* reserved two-byte command. */
+        case 0x45: /* reserved two-byte command. */
+        case 0x46: /* reserved two-byte command. */
+        case 0x47: /* reserved two-byte command. */
+        case 0x48: /* reserved two-byte command. */
+        case 0x49: /* reserved two-byte command. */
+        case 0x4a: /* reserved two-byte command. */
+        case 0x4b: /* reserved two-byte command. */
+        case 0x4c: /* reserved two-byte command. */
+        case 0x4d: /* reserved two-byte command. */
+        case 0x4e: /* reserved two-byte command. */
+        case 0x51: /* YM2413 write */
+        case 0x52: /* YM2612 port 0 write */
+        case 0x53: /* YM2612 port 1 write */
+        case 0x54: /* YM2151 write */
+        case 0x55: /* YM2203 write */
+        case 0x56: /* YM2608 port 0 write */
+        case 0x57: /* YM2608 port 1 write */
+        case 0x58: /* YM2610 port 0 write */
+        case 0x59: /* YM2610 port 1 write */
+        case 0x5a: /* YM3812 write */
+        case 0x5b: /* YM3526 write */
+        case 0x5c: /* Y8950 write */
+        case 0x5d: /* YMZ280B write */
+        case 0x5e: /* YMF262 port 0 write */
+        case 0x5f: /* YMF262 port 1 write */
+        case 0xa1: /* YM2413 write (second chip) */
+        case 0xa2: /* YM2612 port 0 write (second chip) */
+        case 0xa3: /* YM2612 port 1 write (second chip) */
+        case 0xa4: /* YM2151 write (second chip) */
+        case 0xa5: /* YM2203 write (second chip) */
+        case 0xa6: /* YM2608 port 0 write (second chip) */
+        case 0xa7: /* YM2608 port 1 write (second chip) */
+        case 0xa8: /* YM2610 port 0 write (second chip) */
+        case 0xa9: /* YM2610 port 1 write (second chip) */
+        case 0xaa: /* YM3812 write (second chip) */
+        case 0xab: /* YM3526 write (second chip) */
+        case 0xac: /* Y8950 write (second chip) */
+        case 0xad: /* YMZ280B write (second chip) */
+        case 0xae: /* YMF262 port 0 write (second chip) */
+        case 0xaf: /* YMF262 port 1 write (second chip) */
+        case 0xb0: /* RF5C68 write */
+        case 0xb1: /* RF5C164 write */
+        case 0xb2: /* PWM write */
+        case 0xb3: /* GameBoy DMG write */
+        case 0xb4: /* NES APU write */
+        case 0xb5: /* MultiPCM write */
+        case 0xb6: /* uPD7759 write */
+        case 0xb7: /* OKIM6258 write */
+        case 0xb8: /* OKIM6295 write */
+        case 0xb9: /* HuC6280 write */
+        case 0xba: /* K053260 write */
+        case 0xbb: /* Pokey write */
+        case 0xbc: /* WonderSwan write */
+        case 0xbd: /* SAA1099 write */
+        case 0xbe: /* ES5506 write */
+        case 0xbf: /* GA20 write */
+            printf("command = 0x%02x\n", (unsigned) command);
+            skip_bytes(v, 2);
+            break;
+
+        case 0xc0: /* Sega PCM write */
+        case 0xc1: /* RF5C68 write */
+        case 0xc2: /* RF5C164 write */
+        case 0xc3: /* MultiPCM write */
+        case 0xc4: /* QSound write */
+        case 0xc5: /* SCSP write */
+        case 0xc6: /* WonderSwan write */
+        case 0xc7: /* VSU write */
+        case 0xc8: /* X1-010 write */
+        case 0xc9: /* reserved three-byte command. */
+        case 0xca: /* reserved three-byte command. */
+        case 0xcb: /* reserved three-byte command. */
+        case 0xcc: /* reserved three-byte command. */
+        case 0xcd: /* reserved three-byte command. */
+        case 0xce: /* reserved three-byte command. */
+        case 0xcf: /* reserved three-byte command. */
+        case 0xd0: /* YMF278B port write */
+        case 0xd1: /* YMF271 port write */
+        case 0xd2: /* SCC1 port write */
+        case 0xd3: /* K054539 write */
+        case 0xd4: /* C140 write */
+        case 0xd5: /* ES5503 write */
+        case 0xd6: /* ES5506 write */
+        case 0xd7: /* reserved three-byte command. */
+        case 0xd8: /* reserved three-byte command. */
+        case 0xd9: /* reserved three-byte command. */
+        case 0xda: /* reserved three-byte command. */
+        case 0xdb: /* reserved three-byte command. */
+        case 0xdc: /* reserved three-byte command. */
+        case 0xdd: /* reserved three-byte command. */
+        case 0xde: /* reserved three-byte command. */
+        case 0xdf: /* reserved three-byte command. */
+        case 0xe1: /* C352 write */
+            printf("command = 0x%02x\n", (unsigned) command);
+            skip_bytes(v, 3);
+            break;
+
+        case 0xe0: /* Seek to offset in PCM data bank. */
+        case 0xe2: /* reserved four-byte command. */
+        case 0xe3: /* reserved four-byte command. */
+        case 0xe4: /* reserved four-byte command. */
+        case 0xe5: /* reserved four-byte command. */
+        case 0xe6: /* reserved four-byte command. */
+        case 0xe7: /* reserved four-byte command. */
+        case 0xe8: /* reserved four-byte command. */
+        case 0xe9: /* reserved four-byte command. */
+        case 0xea: /* reserved four-byte command. */
+        case 0xeb: /* reserved four-byte command. */
+        case 0xec: /* reserved four-byte command. */
+        case 0xed: /* reserved four-byte command. */
+        case 0xee: /* reserved four-byte command. */
+        case 0xef: /* reserved four-byte command. */
+        case 0xf0: /* reserved four-byte command. */
+        case 0xf1: /* reserved four-byte command. */
+        case 0xf2: /* reserved four-byte command. */
+        case 0xf3: /* reserved four-byte command. */
+        case 0xf4: /* reserved four-byte command. */
+        case 0xf5: /* reserved four-byte command. */
+        case 0xf6: /* reserved four-byte command. */
+        case 0xf7: /* reserved four-byte command. */
+        case 0xf8: /* reserved four-byte command. */
+        case 0xf9: /* reserved four-byte command. */
+        case 0xfa: /* reserved four-byte command. */
+        case 0xfb: /* reserved four-byte command. */
+        case 0xfc: /* reserved four-byte command. */
+        case 0xfd: /* reserved four-byte command. */
+        case 0xfe: /* reserved four-byte command. */
+        case 0xff: /* reserved four-byte command. */
+        case 0x90: /* Setup stream control */
+        case 0x91: /* Set stream data */
+        case 0x95: /* Start stream (fast call) */
+            printf("command = 0x%02x\n", (unsigned) command);
+            skip_bytes(v, 4);
+            break;
+
+        case 0x92: /* Set stream frequency */
+            printf("command = 0x%02x\n", (unsigned) command);
+            skip_bytes(v, 5);
+            break;
+
+        case 0x93: /* Start stream */
+            printf("command = 0x%02x\n", (unsigned) command);
+            skip_bytes(v, 10);
+            break;
+
+        case 0x61:
+            /* Wait n samples. n is 16-bit value. */
+            wait_44khz(get_uint16(v));
+            break;
+
+        case 0x62:
+            /* Wait 735 samples */
+            wait_44khz(735);
+            break;
+
+        case 0x63:
+            /* Wait 882 samples */
+            wait_44khz(882);
+            break;
+
+        case 0x66:
+            /* End of sound data. */
+            done = true;
+            break;
+
+        case 0x67: {
+            /* Data block. */
+            printf("command = 0x%02x\n", (unsigned) command);
+
+            /* Should be 0x66, followed by a byte for the data type. */
+            uint8_t marker = get_uint8(v);
+            if (marker != 0x66)
+                goto parse_error;
+
+            skip_bytes(v, 1);
+
+            /* The next four bytes specify how much data follows. */
+            skip_bytes(v, get_uint32(v));
+            break;
+        }
+
+        case 0x68: {
+            /* PCM RAM write. */
+            printf("command = 0x%02x\n", (unsigned) command);
+
+            /* Should be 0x66, followed by a byte for the chip type, and 12
+             * bytes of offsets and sizes.
+             */
+            uint8_t marker = get_uint8(v);
+            if (marker != 0x66)
+                goto parse_error;
+
+            skip_bytes(v, 13);
+            break;
+        }
+
+        case 0x70:
+        case 0x71:
+        case 0x72:
+        case 0x73:
+        case 0x74:
+        case 0x75:
+        case 0x76:
+        case 0x77:
+        case 0x78:
+        case 0x79:
+        case 0x7a:
+        case 0x7b:
+        case 0x7c:
+        case 0x7d:
+        case 0x7e:
+        case 0x7f:
+            /* Wait n+1 samples. */
+            wait_44khz((command & 0x0f) + 1);
+            break;
+
+        case 0x80:
+        case 0x81:
+        case 0x82:
+        case 0x83:
+        case 0x84:
+        case 0x85:
+        case 0x86:
+        case 0x87:
+        case 0x88:
+        case 0x89:
+        case 0x8a:
+        case 0x8b:
+        case 0x8c:
+        case 0x8d:
+        case 0x8e:
+        case 0x8f:
+            printf("command = 0x%02x\n", (unsigned) command);
+            /* YM2612 port 0 write from data pointer, then wait. */
+            break;
+
+        case 0xa0: {
+            /* AY8910 write */
+            uint8_t v1 = get_uint8(v);
+            uint8_t v2 = get_uint8(v);
+
+            /* https://vgmrips.net/wiki/VGM_Specification#Dual_Chip_Support
+             * says:
+             *
+             *    "All other chips use bit 7 (0x80) of the first parameter
+             *    byte to distinguish between the 1st and 2nd chip."
+             */
+            if (v1 & 0x80 == 0) {
+                outp(psg0_io, v1 & 0x7f);
+                outp(psg0_io + 1, v2);
+            } else if (psg1_io != 0) {
+                outp(psg1_io, v1 & 0x7f);
+                outp(psg1_io + 1, v2);
+            }
+            break;
+        }
+
+        default:
+            printf("command = 0x%02x\n", (unsigned) command);
+            goto parse_error;
+        }
+    }
+
+    psg_off();
+    return;
+
+ parse_error:
+    printf("parse error\n");
+    psg_off();
+    return;
+}
+
+static void
 show_help(const char *progname)
 {
     printf("Usage: %s [/delay:####:####] [/psg:###] [/mode:NAME] filename.vgm\n"
@@ -846,6 +1172,11 @@ static const struct known_mode known_modes[] = {
      * generic 25MHz 386sx system with a PicoGUS.
      */
     { "tandy1000rsx",   101,  1079, 0x01e0, 0x0000, sn76489 },
+
+    /* Mindscape Music Board is a dual AY-3-8913 card. The default base IO
+     * addresses for the chips are 300h and 302h.
+     */
+    { "msmb",             0,     0, 0x0300, 0x0302, ay8910 },
 };
 
 static int
@@ -1141,7 +1472,12 @@ main(int argc, char **argv)
            header.total_samples);
 
     uint32_t before = get_tick();
-    play_Tandy_sound(&v, &header);
+
+    if (psg_mode == sn76489) {
+        play_Tandy_sound(&v, &header);
+    } else {
+        play_AY8910_sound(&v, &header);
+    }
     uint32_t after = get_tick();
 
     uint32_t elapsed_ms = 55ul * (after - before);
