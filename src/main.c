@@ -847,7 +847,7 @@ main(int argc, char **argv)
 {
     int filename_idx = parse_args(argc, argv);
     if (filename_idx < 0) {
-        show_help(argv[0]);
+        show_help("VGMPLAY.EXE");
         return -1;
     }
 
