@@ -18,6 +18,11 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
+/* Uncomment the next line to use INT 1Ah to get the timer tick instead of
+ * directly reading 0040:006c.
+ */
+//#define USE_INT1A
+
 /* Uncomment the next line to get added debug logging. */
 //#define DEBUG_LOG
 
@@ -171,12 +176,18 @@ get_uint32(struct vgm_buf *v)
 static uint32_t
 get_tick()
 {
+#ifdef USE_INT1A
     union REGS r;
 
     r.h.ah = 0;
     int86(0x1a, &r, &r);
 
     return r.w.dx | ((uint32_t) r.w.cx << 16);
+#else
+    volatile uint32_t __far *tick = MK_FP(0x0040, 0x006c);
+
+    return *tick;
+#endif
 }
 
 static uint16_t adj_up;
