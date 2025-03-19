@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <malloc.h>
+#include <dos.h>
 #include <i86.h>
 #include <conio.h>
 #include "vgm.h"
@@ -25,6 +26,8 @@
 
 /* Uncomment the next line to get added debug logging. */
 //#define DEBUG_LOG
+
+#define USE_PIT
 
 struct vgm_buf {
     uint8_t far *buffer;
@@ -190,6 +193,185 @@ get_tick()
 #endif
 }
 
+#ifdef USE_PIT
+volatile uint16_t cur_tick;
+
+static uint16_t last_tick = 0;
+static uint16_t last_count = 0;
+
+#define DIV_ROUND_UP(n, d) ((n + (d >> 1)) / d)
+
+/* 44100   = 2 * 2 * 3 * 3 * 5 * 5 * 7 * 7
+ * 1193180 = 2 * 2         * 5     * 59659
+ *
+ * So, 20Hz is the least common frequency.
+ */
+const uint16_t max_count = DIV_ROUND_UP(1193180, 20);
+const uint16_t samples_per_tick = DIV_ROUND_UP(44100, 20);
+
+void pushf(void);
+#pragma aux pushf = "pushf"  // save flags
+
+void popf(void);
+#pragma aux popf = "popf"    // restore flags
+
+/* Get the high 16-bits of a 32 = 16 * 16 multiply. */
+uint16_t mulh(uint16_t a, uint16_t b);
+#pragma aux mulh =   \
+  "mul dx"           \
+  modify [dx]        \
+  parm [ax] [dx]     \
+  value [ax]
+
+static uint16_t
+read_channel0(void)
+{
+    uint16_t result;
+
+    pushf();
+    _disable();
+
+    outp(0x43, 0);
+    result = inp(0x40);
+    result |= (inp(0x40) << 8);
+
+    popf();
+
+    return result == 0 ? max_count : result;
+}
+
+static uint16_t
+pit_count_to_samples(uint16_t count)
+{
+    /* To convert PIT count to samples, multiply by (12 * 44100) /
+     * 14318180. This is pretty close to 2422 / 65536.
+     */
+#if 0
+    return mulh(2422, count);
+#else
+    return DIV_ROUND_UP(26460 * (uint32_t)count, 715909);
+#endif
+}
+
+static void
+wait_44khz(uint16_t samples)
+{
+    uint16_t tick = cur_tick;
+
+    /* If the tick has advanced, then the time remaining for last_count has
+     * elapsed. Deduct it from samples.
+     *
+     * Big assumption: at most one tick has elapsed.
+     */
+    if (tick != last_tick) {
+        uint16_t adj_samples = pit_count_to_samples(last_count);
+        if (adj_samples >= samples)
+            goto done;
+
+        samples -= adj_samples;
+        last_count = max_count;
+    }
+
+    while (samples >= samples_per_tick) {
+        const uint16_t old = tick;
+
+        do {
+            tick = cur_tick;
+        } while (old == tick);
+
+        samples -= samples_per_tick;
+        last_count = max_count;
+    }
+
+    if (samples > 0) {
+        while (true) {
+            uint16_t prev_count = last_count;
+            last_count = read_channel0();
+
+            uint16_t adj_samples;
+
+            if (prev_count > last_count) {
+                /* Some amount of time has elapsed without another tick
+                 * occuring. The number of samples that have elapsed is based
+                 * on (prev_count - last_count).
+                 */
+                adj_samples = pit_count_to_samples(prev_count - last_count);
+            } else if (prev_count != last_count) {
+                /* Another tick must have occured. That means all of the time
+                 * for prev_count has elapsed. In addtion, time from max_count
+                 * to last_count has eplapsed.
+                 */
+                adj_samples = pit_count_to_samples(prev_count);
+
+                if (adj_samples > samples)
+                    break;
+
+                samples -= adj_samples;
+
+                adj_samples = pit_count_to_samples(max_count - last_count);
+            }
+
+            if (adj_samples > samples)
+                break;
+
+            samples -= adj_samples;
+        }
+    }
+
+ done:
+    _disable();
+    last_count = read_channel0();
+    last_tick = cur_tick;
+    _enable();
+}
+
+void (_WCINTERRUPT __far *old_int8)() = NULL;
+
+static void _WCINTERRUPT
+int8_handler(void)
+{
+    static uint16_t remain = 0xffff;
+
+    cur_tick++;
+
+    /* Acknowledge the interrupt. */
+    if (max_count > remain) {
+        (*old_int8)();
+        remain = 0xffff;
+    } else {
+        outp(0x20, 0x20);
+    }
+
+    remain -= max_count;
+}
+
+static void
+set_tick_rate(void)
+{
+    old_int8 = _dos_getvect(8);
+    _dos_setvect(8, int8_handler);
+
+    _disable();
+    outp(0x43, 0x34);
+    outp(0x40, max_count & 0xff);
+    outp(0x40, max_count >> 8);
+    _enable();
+}
+
+static void
+restore_tick_rate(void)
+{
+    if (old_int8 != NULL)
+        _dos_setvect(8, old_int8);
+
+    _disable();
+    outp(0x43, 0x36);
+    outp(0x40, 0xff);
+    outp(0x40, 0xff);
+    _enable();
+}
+
+#else
 static uint16_t adj_up;
 static uint16_t adj_dn = 0;
 static uint16_t initial;
@@ -383,6 +565,7 @@ calibrate_delay()
            n, d);
 #endif
 }
+#endif
 
 static void
 psg_off(void)
@@ -1202,7 +1385,9 @@ parse_args(int argc, char **argv)
                   argv[i][1] == 'h' || argv[i][1] == 'H') &&
                  argv[i][2] == '\0')) {
                 return -1;
-            } else if (strncasecmp(argv[i], "/delay:", 7) == 0) {
+            }
+#ifndef USE_PIT
+            else if (strncasecmp(argv[i], "/delay:", 7) == 0) {
                 char *next;
                 unsigned long n = strtol(&argv[i][7], &next, 10);
 
@@ -1223,15 +1408,19 @@ parse_args(int argc, char **argv)
                 }
 
                 set_delay_parameters(n, d);
-            } else if (strncasecmp(argv[i], "/mode:", 6) == 0) {
+            }
+#endif
+            else if (strncasecmp(argv[i], "/mode:", 6) == 0) {
                 unsigned j;
 
                 for (j = 0; j < ARRAY_SIZE(known_modes); j++) {
                     if (strcasecmp(argv[i] + 6, known_modes[j].name) == 0) {
+#ifndef USE_PIT
                         if (known_modes[j].delay_n != 0) {
                             set_delay_parameters(known_modes[j].delay_n,
                                                  known_modes[j].delay_d);
                         }
+#endif
 
                         psg0_io = known_modes[j].psg0_io;
                         psg1_io = known_modes[j].psg1_io;
@@ -1474,8 +1663,12 @@ main(int argc, char **argv)
 
     struct vgm_buf v = { buffer, size, 0 };
 
+#ifdef USE_PIT
+    set_tick_rate();
+#else
     if (adj_dn == 0)
         calibrate_delay();
+#endif
 
     uint32_t expected_ms = (10 * header.total_samples) / 441;
     printf("Expected play time = %lu.%03lus (%lu samples @ 44100Hz)\n",
@@ -1495,6 +1688,10 @@ main(int argc, char **argv)
     printf("Elapsed play time = %lu.%03lus (%lu ticks)\n",
            elapsed_ms / 1000, elapsed_ms % 1000,
            after - before);
+
+#ifdef USE_PIT
+    restore_tick_rate();
+#endif
 
  fail:
     close(fd);
